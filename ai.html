@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LABYRINTH — Maze Game</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --black: #0a0a0a;
+      --dark: #111111;
+      --grey-dark: #1a1a1a;
+      --grey-mid: #2a2a2a;
+      --grey-light: #444444;
+      --grey-text: #888888;
+      --orange: #ff6a00;
+      --orange-bright: #ff8c00;
+      --orange-dim: #7a3000;
+      --orange-glow: rgba(255, 106, 0, 0.4);
+      --white: #f0f0f0;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--black);
+      color: var(--white);
+      font-family: 'Share Tech Mono', monospace;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Scanline overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.07) 2px,
+        rgba(0,0,0,0.07) 4px
+      );
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* ── NAV ── */
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      background: var(--dark);
+      border-bottom: 1px solid var(--orange-dim);
+      padding: 0 32px;
+      height: 56px;
+      position: relative;
+    }
+    nav::after {
+      content: '';
+      position: absolute;
+      bottom: -3px; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--orange), transparent);
+      opacity: 0.6;
+    }
+    .nav-brand {
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 900;
+      font-size: 18px;
+      letter-spacing: 0.15em;
+      color: var(--orange);
+      text-shadow: 0 0 12px var(--orange-glow);
+      margin-right: auto;
+      text-decoration: none;
+    }
+    .nav-links { display: flex; gap: 4px; }
+    .nav-link {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--grey-text);
+      text-decoration: none;
+      padding: 8px 18px;
+      border: 1px solid transparent;
+      border-radius: 2px;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .nav-link:hover, .nav-link.active {
+      color: var(--orange);
+      border-color: var(--orange-dim);
+      background: rgba(255,106,0,0.07);
+      text-shadow: 0 0 8px var(--orange-glow);
+    }
+    .nav-link::before {
+      content: '//';
+      margin-right: 6px;
+      opacity: 0.4;
+    }
+
+    /* ── MAIN LAYOUT ── */
+    main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px 48px;
+      gap: 24px;
+    }
+
+    /* ── HEADER ── */
+    .game-header {
+      text-align: center;
+    }
+    .game-title {
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 900;
+      font-size: clamp(28px, 5vw, 52px);
+      letter-spacing: 0.25em;
+      color: var(--white);
+      text-shadow: 0 0 30px var(--orange-glow), 0 0 60px rgba(255,106,0,0.2);
+      line-height: 1;
+    }
+    .game-title span { color: var(--orange); }
+    .game-subtitle {
+      font-size: 11px;
+      letter-spacing: 0.3em;
+      color: var(--grey-text);
+      margin-top: 6px;
+      text-transform: uppercase;
+    }
+
+    /* ── HUD BAR ── */
+    .hud {
+      display: flex;
+      gap: 32px;
+      align-items: center;
+      background: var(--dark);
+      border: 1px solid var(--grey-mid);
+      border-top: 2px solid var(--orange-dim);
+      padding: 12px 32px;
+      border-radius: 2px;
+      min-width: min(700px, 100%);
+    }
+    .hud-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .hud-label {
+      font-size: 9px;
+      letter-spacing: 0.25em;
+      color: var(--grey-text);
+      text-transform: uppercase;
+    }
+    .hud-value {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--orange);
+      text-shadow: 0 0 10px var(--orange-glow);
+    }
+    .hud-sep {
+      width: 1px;
+      height: 36px;
+      background: var(--grey-mid);
+    }
+    .hud-item.right { margin-left: auto; }
+
+    /* ── CANVAS WRAPPER ── */
+    .canvas-wrap {
+      position: relative;
+      background: var(--dark);
+      border: 1px solid var(--grey-mid);
+      border-radius: 4px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px var(--orange-dim),
+        0 0 40px rgba(255,106,0,0.1),
+        0 20px 60px rgba(0,0,0,0.8);
+    }
+    .canvas-wrap::before, .canvas-wrap::after {
+      content: '';
+      position: absolute;
+      z-index: 10;
+      pointer-events: none;
+    }
+    /* Corner accents */
+    .canvas-wrap::before {
+      top: 0; left: 0;
+      width: 24px; height: 24px;
+      border-top: 2px solid var(--orange);
+      border-left: 2px solid var(--orange);
+    }
+    .canvas-wrap::after {
+      bottom: 0; right: 0;
+      width: 24px; height: 24px;
+      border-bottom: 2px solid var(--orange);
+      border-right: 2px solid var(--orange);
+    }
+    #mazeCanvas {
+      display: block;
+      image-rendering: pixelated;
+    }
+
+    /* ── OVERLAY ── */
+    #overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10,10,10,0.92);
+      z-index: 20;
+      gap: 16px;
+      transition: opacity 0.3s;
+    }
+    #overlay.hidden { display: none; }
+    .overlay-title {
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 900;
+      font-size: clamp(18px, 4vw, 36px);
+      letter-spacing: 0.2em;
+      color: var(--white);
+    }
+    .overlay-title span { color: var(--orange); text-shadow: 0 0 20px var(--orange-glow); }
+    .overlay-sub {
+      font-size: 12px;
+      letter-spacing: 0.2em;
+      color: var(--grey-text);
+    }
+    .btn {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      padding: 12px 36px;
+      background: transparent;
+      border: 1px solid var(--orange);
+      color: var(--orange);
+      cursor: pointer;
+      border-radius: 2px;
+      transition: all 0.2s;
+      text-shadow: 0 0 8px var(--orange-glow);
+      box-shadow: 0 0 20px rgba(255,106,0,0.1), inset 0 0 20px rgba(255,106,0,0.05);
+      margin-top: 8px;
+    }
+    .btn:hover {
+      background: rgba(255,106,0,0.12);
+      box-shadow: 0 0 30px var(--orange-glow), inset 0 0 30px rgba(255,106,0,0.1);
+      transform: translateY(-1px);
+    }
+    .key-hints {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      color: var(--grey-text);
+    }
+    .key {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px; height: 26px;
+      border: 1px solid var(--grey-mid);
+      border-radius: 3px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 9px;
+      color: var(--grey-light);
+      background: var(--grey-dark);
+    }
+
+    /* ── CONTROLS INFO ── */
+    .controls-bar {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: var(--grey-text);
+    }
+    .controls-bar .key { width: 22px; height: 22px; font-size: 8px; }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="index.html" class="nav-brand">LABYRINTH</a>
+  <div class="nav-links">
+    <a href="index.html" class="nav-link">Home</a>
+    <a href="fromScratch.html" class="nav-link">From Scratch</a>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main>
+  <div class="game-header">
+    <div class="game-title">LABY<span>RINTH</span></div>
+    <div class="game-subtitle">// navigate the darkness — find the exit //</div>
+  </div>
+
+  <!-- HUD -->
+  <div class="hud">
+    <div class="hud-item">
+      <div class="hud-label">Level</div>
+      <div class="hud-value" id="levelDisplay">01</div>
+    </div>
+    <div class="hud-sep"></div>
+    <div class="hud-item">
+      <div class="hud-label">Time</div>
+      <div class="hud-value" id="timerDisplay">00:00</div>
+    </div>
+    <div class="hud-sep"></div>
+    <div class="hud-item">
+      <div class="hud-label">Moves</div>
+      <div class="hud-value" id="movesDisplay">0</div>
+    </div>
+    <div class="hud-sep"></div>
+    <div class="hud-item right">
+      <div class="hud-label">Best Time</div>
+      <div class="hud-value" id="bestDisplay">--:--</div>
+    </div>
+  </div>
+
+  <!-- CANVAS -->
+  <div class="canvas-wrap">
+    <canvas id="mazeCanvas"></canvas>
+    <div id="overlay">
+      <div class="overlay-title" id="overlayTitle"><span>LABY</span>RINTH</div>
+      <div class="overlay-sub" id="overlaySub">// Use arrow keys to navigate the maze //</div>
+      <div class="key-hints">
+        <span class="key">↑</span>
+        <span class="key">↓</span>
+        <span class="key">←</span>
+        <span class="key">→</span>
+      </div>
+      <button class="btn" id="startBtn">INITIATE</button>
+    </div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="controls-bar">
+    <span class="key">↑</span>
+    <span class="key">↓</span>
+    <span class="key">←</span>
+    <span class="key">→</span>
+    <span style="margin-left:4px">Arrow keys to move</span>
+    <span style="color: var(--grey-mid); margin: 0 4px">|</span>
+    <span>Reach the <span style="color:var(--orange)">glowing exit</span> to advance</span>
+  </div>
+</main>
+
+<script>
+(function() {
+  const canvas = document.getElementById('mazeCanvas');
+  const ctx = canvas.getContext('2d');
+  const overlay = document.getElementById('overlay');
+  const startBtn = document.getElementById('startBtn');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlaySub = document.getElementById('overlaySub');
+  const levelDisplay = document.getElementById('levelDisplay');
+  const timerDisplay = document.getElementById('timerDisplay');
+  const movesDisplay = document.getElementById('movesDisplay');
+  const bestDisplay = document.getElementById('bestDisplay');
+
+  // ── CONFIG ──────────────────────────────────────
+  const CELL = 28;
+  const COLS = 25;
+  const ROWS = 19;
+  const W = COLS * CELL;
+  const H = ROWS * CELL;
+
+  canvas.width = W;
+  canvas.height = H;
+
+  // Color palette
+  const C = {
+    bg: '#0a0a0a',
+    wallBase: '#1a1a1a',
+    wallEdge: '#2a2a2a',
+    wallHigh: '#333333',
+    floor: '#111111',
+    floorAlt: '#0f0f0f',
+    orange: '#ff6a00',
+    orangeDim: '#7a3000',
+    orangeGlow: 'rgba(255,106,0,',
+    path: 'rgba(255,106,0,0.06)',
+    player: '#ff8c00',
+    playerCore: '#ffcc00',
+    exit: '#ff6a00',
+    fog: 'rgba(10,10,10,',
+  };
+
+  // ── STATE ────────────────────────────────────────
+  let maze = [];
+  let player = { x: 0, y: 0 };
+  let exit = { x: 0, y: 0 };
+  let level = 1;
+  let moves = 0;
+  let timerStart = 0;
+  let timerInterval = null;
+  let gameActive = false;
+  let bestTimes = {};
+  let visited = [];
+  let playerTrail = [];
+  let exitPulse = 0;
+  let playerPulse = 0;
+  let wallParticles = [];
+
+  // ── MAZE GENERATION (Recursive Backtracker) ──────
+  function generateMaze(cols, rows) {
+    const grid = Array.from({ length: rows }, (_, r) =>
+      Array.from({ length: cols }, (_, c) => ({
+        x: c, y: r,
+        walls: { N: true, S: true, E: true, W: true },
+        visited: false
+      }))
+    );
+
+    const stack = [];
+    const start = grid[0][0];
+    start.visited = true;
+    stack.push(start);
+
+    const dirs = ['N','S','E','W'];
+    const opp = { N:'S', S:'N', E:'W', W:'E' };
+    const dx = { N:0, S:0, E:1, W:-1 };
+    const dy = { N:-1, S:1, E:0, W:0 };
+
+    while (stack.length) {
+      const cell = stack[stack.length - 1];
+      const neighbors = dirs
+        .map(d => {
+          const nx = cell.x + dx[d];
+          const ny = cell.y + dy[d];
+          if (nx >= 0 && nx < cols && ny >= 0 && ny < rows && !grid[ny][nx].visited)
+            return { d, cell: grid[ny][nx] };
+          return null;
+        })
+        .filter(Boolean);
+
+      if (!neighbors.length) { stack.pop(); continue; }
+      const { d, cell: next } = neighbors[Math.floor(Math.random() * neighbors.length)];
+      cell.walls[d] = false;
+      next.walls[opp[d]] = false;
+      next.visited = true;
+      stack.push(next);
+    }
+    return grid;
+  }
+
+  // ── INIT GAME ────────────────────────────────────
+  function initGame() {
+    maze = generateMaze(COLS, ROWS);
+    player = { x: 0, y: 0 };
+    exit = { x: COLS - 1, y: ROWS - 1 };
+    moves = 0;
+    playerTrail = [];
+    wallParticles = [];
+    visited = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
+    visited[0][0] = true;
+    movesDisplay.textContent = '0';
+    levelDisplay.textContent = String(level).padStart(2, '0');
+    clearInterval(timerInterval);
+    timerStart = Date.now();
+    timerInterval = setInterval(updateTimer, 500);
+    gameActive = true;
+  }
+
+  function updateTimer() {
+    if (!gameActive) return;
+    const elapsed = Math.floor((Date.now() - timerStart) / 1000);
+    const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
+    const s = (elapsed % 60).toString().padStart(2, '0');
+    timerDisplay.textContent = `${m}:${s}`;
+  }
+
+  // ── INPUT ─────────────────────────────────────────
+  const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+  let moveQueue = [];
+
+  document.addEventListener('keydown', e => {
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+      e.preventDefault();
+      if (gameActive) moveQueue.push(e.key);
+    }
+  });
+
+  function processMove() {
+    if (!moveQueue.length) return;
+    const key = moveQueue.shift();
+    const dirMap = {
+      ArrowUp: 'N',
+      ArrowDown: 'S',
+      ArrowLeft: 'W',
+      ArrowRight: 'E'
+    };
+    const dx = { N:0, S:0, E:1, W:-1 };
+    const dy = { N:-1, S:1, E:0, W:0 };
+    const d = dirMap[key];
+    const cell = maze[player.y][player.x];
+    if (!cell.walls[d]) {
+      playerTrail.push({ x: player.x, y: player.y, age: 0 });
+      player.x += dx[d];
+      player.y += dy[d];
+      visited[player.y][player.x] = true;
+      moves++;
+      movesDisplay.textContent = moves;
+
+      // Wall hit particle burst (if wall blocked)
+    } else {
+      spawnWallParticles(player.x, player.y, d);
+    }
+
+    if (player.x === exit.x && player.y === exit.y) {
+      levelComplete();
+    }
+  }
+
+  function spawnWallParticles(cx, cy, dir) {
+    const dx2 = { N:0, S:0, E:1, W:-1 };
+    const dy2 = { N:-1, S:1, E:0, W:0 };
+    const px = (cx + 0.5 + dx2[dir] * 0.5) * CELL;
+    const py = (cy + 0.5 + dy2[dir] * 0.5) * CELL;
+    for (let i = 0; i < 6; i++) {
+      wallParticles.push({
+        x: px, y: py,
+        vx: (Math.random() - 0.5) * 3,
+        vy: (Math.random() - 0.5) * 3,
+        life: 1, decay: 0.08 + Math.random() * 0.06
+      });
+    }
+  }
+
+  function levelComplete() {
+    gameActive = false;
+    clearInterval(timerInterval);
+    const elapsed = Math.floor((Date.now() - timerStart) / 1000);
+    const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
+    const s = (elapsed % 60).toString().padStart(2, '0');
+    const timeStr = `${m}:${s}`;
+
+    if (!bestTimes[level] || elapsed < bestTimes[level]) {
+      bestTimes[level] = elapsed;
+      const bm = Math.floor(elapsed / 60).toString().padStart(2, '0');
+      const bs = (elapsed % 60).toString().padStart(2, '0');
+      bestDisplay.textContent = `${bm}:${bs}`;
+    }
+
+    overlayTitle.innerHTML = `<span>LEVEL</span> CLEAR`;
+    overlaySub.innerHTML = `// Completed in ${timeStr} — ${moves} moves //`;
+    startBtn.textContent = 'NEXT LEVEL';
+    overlay.classList.remove('hidden');
+  }
+
+  // ── DRAWING ───────────────────────────────────────
+
+  function drawFloor() {
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const x = c * CELL;
+        const y = r * CELL;
+        ctx.fillStyle = (c + r) % 2 === 0 ? C.floor : C.floorAlt;
+        ctx.fillRect(x, y, CELL, CELL);
+
+        if (visited[r] && visited[r][c]) {
+          ctx.fillStyle = C.path;
+          ctx.fillRect(x, y, CELL, CELL);
+        }
+      }
+    }
+  }
+
+  function drawWalls() {
+    ctx.lineCap = 'square';
+
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const cell = maze[r][c];
+        const x = c * CELL;
+        const y = r * CELL;
+
+        // Wall depth effect
+        const drawWall = (x1, y1, x2, y2) => {
+          // Shadow
+          ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+          ctx.lineWidth = 5;
+          ctx.beginPath(); ctx.moveTo(x1+1,y1+1); ctx.lineTo(x2+1,y2+1); ctx.stroke();
+          // Base
+          ctx.strokeStyle = C.wallBase;
+          ctx.lineWidth = 4;
+          ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+          // Edge highlight
+          ctx.strokeStyle = C.wallHigh;
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+        };
+
+        if (cell.walls.N) drawWall(x, y, x + CELL, y);
+        if (cell.walls.S) drawWall(x, y + CELL, x + CELL, y + CELL);
+        if (cell.walls.W) drawWall(x, y, x, y + CELL);
+        if (cell.walls.E) drawWall(x + CELL, y, x + CELL, y + CELL);
+      }
+    }
+  }
+
+  function drawFog() {
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (visited[r] && visited[r][c]) continue;
+        const dx = c - player.x;
+        const dy = r - player.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const fogAlpha = Math.min(1, Math.max(0, (dist - 3) / 4));
+        if (fogAlpha > 0) {
+          ctx.fillStyle = C.fog + fogAlpha + ')';
+          ctx.fillRect(c * CELL, r * CELL, CELL, CELL);
+        }
+      }
+    }
+  }
+
+  function drawTrail() {
+    for (const t of playerTrail) {
+      const alpha = (1 - t.age / 18) * 0.25;
+      if (alpha <= 0) continue;
+      ctx.fillStyle = C.orangeGlow + alpha + ')';
+      ctx.beginPath();
+      ctx.arc(
+        t.x * CELL + CELL / 2,
+        t.y * CELL + CELL / 2,
+        CELL * 0.22,
+        0, Math.PI * 2
+      );
+      ctx.fill();
+    }
+  }
+
+  function drawExit() {
+    const ex = exit.x * CELL + CELL / 2;
+    const ey = exit.y * CELL + CELL / 2;
+    exitPulse += 0.06;
+    const pulse = Math.sin(exitPulse);
+
+    // Outer glow rings
+    for (let i = 3; i >= 1; i--) {
+      const r = CELL * (0.3 + i * 0.15 + pulse * 0.04 * i);
+      const a = 0.12 / i;
+      ctx.beginPath();
+      ctx.arc(ex, ey, r, 0, Math.PI * 2);
+      ctx.fillStyle = C.orangeGlow + a + ')';
+      ctx.fill();
+    }
+
+    // Exit marker — diamond
+    ctx.save();
+    ctx.translate(ex, ey);
+    ctx.rotate(Math.PI / 4 + exitPulse * 0.3);
+    const s = CELL * (0.22 + pulse * 0.02);
+    ctx.fillStyle = C.orangeGlow + '0.9)';
+    ctx.fillRect(-s, -s, s * 2, s * 2);
+    ctx.strokeStyle = C.orange;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(-s, -s, s * 2, s * 2);
+    ctx.restore();
+
+    // Core
+    ctx.beginPath();
+    ctx.arc(ex, ey, 4 + pulse * 1, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+  }
+
+  function drawPlayer() {
+    const px = player.x * CELL + CELL / 2;
+    const py = player.y * CELL + CELL / 2;
+    playerPulse += 0.12;
+    const pulse = Math.sin(playerPulse);
+
+    // Aura
+    const grad = ctx.createRadialGradient(px, py, 0, px, py, CELL * 0.7);
+    grad.addColorStop(0, C.orangeGlow + '0.5)');
+    grad.addColorStop(1, C.orangeGlow + '0)');
+    ctx.beginPath();
+    ctx.arc(px, py, CELL * 0.7, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Outer ring
+    ctx.beginPath();
+    ctx.arc(px, py, 9 + pulse, 0, Math.PI * 2);
+    ctx.strokeStyle = C.orangeGlow + '0.6)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Body
+    ctx.beginPath();
+    ctx.arc(px, py, 7, 0, Math.PI * 2);
+    ctx.fillStyle = C.player;
+    ctx.fill();
+
+    // Core
+    ctx.beginPath();
+    ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = C.playerCore;
+    ctx.fill();
+  }
+
+  function drawParticles() {
+    for (let i = wallParticles.length - 1; i >= 0; i--) {
+      const p = wallParticles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life -= p.decay;
+      if (p.life <= 0) { wallParticles.splice(i, 1); continue; }
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2 * p.life, 0, Math.PI * 2);
+      ctx.fillStyle = C.orangeGlow + p.life * 0.8 + ')';
+      ctx.fill();
+    }
+  }
+
+  function drawStartGoal() {
+    // Start marker (subtle)
+    ctx.fillStyle = 'rgba(100,200,100,0.08)';
+    ctx.fillRect(0, 0, CELL, CELL);
+    ctx.fillStyle = 'rgba(100,200,100,0.4)';
+    ctx.font = 'bold 10px Share Tech Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText('S', CELL/2, CELL/2 + 4);
+  }
+
+  // ── MAIN LOOP ─────────────────────────────────────
+  let lastMoveTime = 0;
+  const MOVE_DELAY = 140;
+
+  function loop(ts) {
+    requestAnimationFrame(loop);
+    if (!gameActive) return;
+
+    if (ts - lastMoveTime > MOVE_DELAY) {
+      processMove();
+      lastMoveTime = ts;
+    }
+
+    // Age trail
+    for (const t of playerTrail) t.age++;
+    playerTrail = playerTrail.filter(t => t.age < 18);
+
+    // Draw
+    ctx.fillStyle = C.bg;
+    ctx.fillRect(0, 0, W, H);
+
+    drawFloor();
+    drawStartGoal();
+    drawTrail();
+    drawExit();
+    drawWalls();
+    drawFog();
+    drawPlayer();
+    drawParticles();
+
+    // Grid scanline
+    ctx.fillStyle = 'rgba(0,0,0,0.04)';
+    for (let y = 0; y < H; y += 2) {
+      ctx.fillRect(0, y, W, 1);
+    }
+  }
+
+  // ── EVENTS ────────────────────────────────────────
+  startBtn.addEventListener('click', () => {
+    if (startBtn.textContent === 'NEXT LEVEL') level++;
+    overlay.classList.add('hidden');
+    initGame();
+  });
+
+  // Start loop
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

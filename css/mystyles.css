@@ -1,0 +1,139 @@
+/* ========================
+   myStyles.css
+   Dream Tacoma Page Styles
+   ======================== */
+
+/* --- Page Background --- */
+body {
+    background-color: orange;
+    font-family: Arial, sans-serif;
+    color: #222222;
+    margin: 0px;
+    padding: 0px;
+}
+
+/* --- DIV 1: Header --- */
+.header {
+    background-color: black;
+    color: white;
+    text-align: center;
+    padding: 20px;
+    font-family: Georgia, serif;
+}
+
+/* --- Navigation Bar --- */
+nav {
+    background-color: #333333;
+    padding: 10px;
+    overflow: hidden;
+}
+
+nav a {
+    color: white;
+    text-decoration: none;
+    padding: 10px 15px;
+    float: left;
+    font-family: Arial, sans-serif;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+nav a:hover {
+    background-color: orange;
+    color: black;
+}
+
+/* --- DIV 2: Main Body Section --- */
+.mainbody {
+    background-color: #fff5e6;
+    text-align: center;
+    padding: 30px;
+    font-family: Arial, sans-serif;
+    color: #333333;
+}
+
+/* --- DIV 3: Content Sections --- */
+.section {
+    background-color: white;
+    margin: 20px auto;
+    padding: 25px 40px;
+    max-width: 800px;
+    font-family: Arial, sans-serif;
+    color: #222222;
+    border-left: 6px solid black;
+}
+
+/* --- Video Section --- */
+.videosection {
+    background-color: #1a1a1a;
+    color: white;
+    text-align: center;
+    padding: 30px;
+    font-family: Georgia, serif;
+}
+
+/* --- Headings --- */
+h1 {
+    font-family: Georgia, serif;
+    color: white;
+}
+
+h2 {
+    font-family: Georgia, serif;
+    color: #b85c00;
+}
+
+/* --- Lists --- */
+ol {
+    font-size: 16px;
+    line-height: 1.8;
+}
+
+ul {
+    font-size: 15px;
+    color: #555555;
+}
+
+/* --- Images --- */
+img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    width: 40%;
+    border: 4px solid black;
+    margin-top: 15px;
+    margin-bottom: 5px;
+}
+
+/* --- Center utility --- */
+.center {
+    text-align: center;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+}
+
+.center a {
+    color: black;
+    font-weight: bold;
+    font-size: 18px;
+    text-decoration: none;
+}
+
+.center a:hover {
+    text-decoration: underline;
+}
+
+/* --- Footer --- */
+.footer {
+    background-color: black;
+    color: white;
+    text-align: center;
+    height: 30px;
+    line-height: 30px;
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    position: fixed;
+    bottom: 0px;
+    left: 0px;
+    right: 0px;
+}
